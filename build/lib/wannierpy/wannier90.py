@@ -23,7 +23,7 @@
 #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from itertools import product
+from itertools import product, repeat
 from pygnuplot import *
 import numpy as np
 from cmath import exp,pi
@@ -32,6 +32,18 @@ import os
 from matplotlib import pyplot as plt
 from math import ceil
 I = complex(0,1)
+
+def red_car(red,lat):
+    """
+    Convert reduced coordinates to cartesian
+    """
+    return np.array(map( lambda coord: coord[0]*lat[0]+coord[1]*lat[1]+coord[2]*lat[2], red))
+
+def car_red(car,lat):
+    """
+    Convert cartesian coordinates to reduced
+    """
+    return np.array(map( lambda coord: np.linalg.solve(np.array(lat).T,coord), car))
 
 def plot_matrix(mat):
     nx,ny = np.array(mat).shape
@@ -57,19 +69,24 @@ class Wannier_win():
                         self.lat.append( [float(x) for x in line.strip().split()] )
 
         #read atomic postions
+        cart = False #flag to know if the coordinates of the atoms are cartesian 
         f.seek(0)
         self.atoms = []
         self.atypes = []
         for line in f:
-            if "begin atoms_cart" in line:
+            if "begin atoms_cart" in line or  "begin atoms_frac" in line:
+                if 'cart' in line: cart = True
                 for line in f:
-                    if "end atoms_cart" in line:
+                    if "end" in line:
                         break
                     if "bohr" in line or "angstroem" in line:
                         continue
                     else:
                         line_strip = line.strip().split()
-                        self.atoms.append( [line_strip[0], [ float(x) for x in line_strip[1:] ]] )
+                        atom = [line_strip[0], [ float(x) for x in line_strip[1:] ]]
+                        if cart:
+                            atom = car_red([atom],self.lat)
+                        self.atoms.append( atom )
         f.close()
         self.natoms = len(self.atoms)
 
@@ -335,6 +352,25 @@ class Bandstructure():
         if filename: plt.savefig(filename,transparent=True)
         if show: plt.show()
         return plt
+
+    def unfold(self,indexes,vectors):
+        """ Unfold a bandstructure of a supercell into a unit cell
+        """
+        assert self.nbands == len(indexes) == len(vectors), "The number of indexes does not correspond to the number of orbitals"
+       
+        #get eigenvectors
+        f = open('unfold.dat','w')
+        norbitals = max(indexes)+1
+        weigths = np.zeros([norbitals],dtype=complex)
+        for nk,k in enumerate(self.kpoints):
+            eiv = self.eigenvectors[nk]
+            for n in xrange(self.nbands):
+                weigths[:] = 0
+                for o,v in enumerate(vectors):
+                    weigths[indexes[o]] += eiv[n,o]*exp(I*2*pi*np.dot(k,v))
+                val = abs(np.dot(weigths.conj(),weigths))*4
+                f.write("%d %lf %lf\n"%(nk,self.eigenvalues[nk,n],val))
+        f.close()
 
     def get_bandstructure_eivecs(self,eig):
         """ get the bnsdstructure and eigenvectors
