@@ -148,6 +148,27 @@ class Wannier_hr():
 
         return ham
 
+    def get_ham_real(self,hamk,kpoints):
+        """
+        Get the hamiltonian in real space using a list of hamiltonians
+        on a regular mesh of k-points
+        """
+
+        nkpoints = len(hamk)
+        ham = np.zeros([self.npoints,self.nwann,self.nwann],dtype=complex)
+        for nk,kpoint in enumerate(kpoints):
+            for n in xrange(self.npoints):
+                ham[n] += hamk[nk]*exp(-I*2*pi*np.dot(kpoint,self.points[n]))*self.degeneracy[n]
+        return ham/nkpoints
+
+    def get_ham_kpoint(self,kpoint=(0,0,0)):
+        """ Get the hamiltonian at a certain k-point
+        """
+        hamk = np.zeros([self.nwann,self.nwann],dtype=complex)
+        for n in xrange(self.npoints):
+            hamk += self.ham[n]*exp(I*2*pi*np.dot(kpoint,self.points[n]))/self.degeneracy[n]
+        return hamk
+
     def get_hopping_matrices(self):
         """ Get the interaction matrices in real space
         """
@@ -158,6 +179,9 @@ class Wannier_hr():
 
     def get_eigvalsh(self,kpoint=(0,0,0)):
         return np.linalg.eigvalsh(self.get_ham_kpoint(kpoint))
+
+    def get_eigvals(self,kpoint=(0,0,0)):
+        return np.linalg.eigvals(self.get_ham_kpoint(kpoint))
 
     def get_eigh(self,kpoint=(0,0,0)):
         return np.linalg.eigh(self.get_ham_kpoint(kpoint))
