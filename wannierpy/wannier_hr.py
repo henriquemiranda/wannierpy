@@ -29,6 +29,7 @@ import numpy as np
 from cmath import exp,pi
 import pickle
 import os
+from copy import copy
 from matplotlib import pyplot as plt
 from math import ceil
 I = complex(0,1)
@@ -56,9 +57,13 @@ class Wannier_hr():
     def __init__(self,seedname,dopickle=True):
         """ Read the hamiltonian from wannier interpolation
         """
+        self.kpoints_interpolate_hash = None
+        self.kpoints_calc_hash = None
+
         f = open(seedname+"_hr.dat",'r')
         f.readline()
         self.supercell = (1,1,1)
+
         #check for the existence of a pickle
         if os.path.isfile(seedname+'.npy') and dopickle:
             print "reading from", seedname+'.npy'
@@ -148,6 +153,76 @@ class Wannier_hr():
 
         return ham
 
+    def interpolate_bands(self,kmesh_calc,wigner_mesh,kpoints_interpolate):
+        """
+        Function to interpolate a quantity in the bandstructure
+
+        wannier     regular mesh        wannier     any kmesh
+         mesh          kpoints          r-mesh
+                  
+           Hr    ->       Hk       ->     Hr      ->   Hk
+                 1.                2.             3.
+                 kmesh_calc        wigner_mesh    kpoints_interpolate
+
+        Arguments:
+        wigner_mesh   -> (points,degeneracy)
+        bands_calc    -> (kpoints,eig)
+        kpoints_interpolate -> kpoints
+        """
+        # 1. calculate the eigenvectors at the kpoints
+        # Hr -> Hk
+        kpoints_calc, eig_calc = kmesh_calc
+        kpoints_calc = np.array(kpoints_calc)
+        kpoints_interpolate = np.array(kpoints_interpolate)
+
+        #hash kpoints_calc and kpoints_interpolate
+        kpoints_interpolate_hash = hash(str(kpoints_interpolate))
+        kpoints_calc_hash        = hash(str(kpoints_calc))
+
+        #avoid recalculating things        
+        if not self.kpoints_interpolate_hash == kpoints_interpolate_hash:
+            h = self.get_ham_kpoints(kpoints_interpolate)
+            _, self.eiv_interpolate = zip(*[ np.linalg.eigh(hk) for hk in h ])
+            self.kpoints_interpolate_hash = kpoints_interpolate_hash 
+        if not self.kpoints_calc_hash == kpoints_calc_hash:
+            h = self.get_ham_kpoints(kpoints_calc)
+            _, self.eiv_calc = zip(*[ np.linalg.eigh(hk) for hk in h ])
+            self.kpoints_calc_hash = kpoints_calc_hash 
+
+        # 2. calculate the Hr hamiltonian
+        # Hk -> Hr 
+
+        #backup
+        bk_points = copy(self.points)
+        bk_degeneracy = copy(self.degeneracy)
+        bk_ham = copy(self.ham)
+    
+        #increase the number of real space components for the interpolation
+        points, degeneracy = wigner_mesh
+        self.points     = points
+        self.degeneracy = degeneracy
+        self.npoints    = len(points)
+        nbands = self.nwann
+
+        #replace the eigenvalues in the hamiltonian
+        h = [ np.dot(np.dot(u,np.eye(nbands)*e),np.conjugate(u.T)) for e,u in zip(eig_calc,self.eiv_calc) ]
+
+        #calculate Hr
+        self.ham = self.get_ham_real(h,kpoints_calc)
+
+        # 3. interpolate the hamiltonian at the different kpoints
+        # Hr -> Hk
+        h          = np.array([ self.get_ham_kpoint(kpt) for kpt in kpoints_interpolate ])
+        eig_interp = np.array([ np.dot(np.dot(np.conjugate(u.T),hk),u).diagonal().real for hk,u in zip(h,self.eiv_interpolate) ])
+
+        #restore
+        self.points = bk_points
+        self.degeneracy = bk_degeneracy
+        self.ham = bk_ham
+        self.npoints = len(bk_points)
+
+        return eig_interp
+
     def get_ham_real(self,hamk,kpoints):
         """
         Get the hamiltonian in real space using a list of hamiltonians
@@ -170,12 +245,24 @@ class Wannier_hr():
         return hamk
 
     def get_hopping_matrices(self):
-        """ Get the interaction matrices in real space
+        """
+        Get the interaction matrices in real space
         """
         xij_int = [ tuple(x) for x in self.points ]
 
         #create a dicitonary with the different positions and empty matrices
         return dict(zip(xij_int,[self.ham[i] for i in xrange(self.npoints)]))
+
+    def get_ham_kpoints(self,kpoints):
+        """
+        Get the hamiltonian for a list of k-points
+        """
+        nkpoints = len(kpoints)
+        nbands   = self.nwann
+        h = np.zeros([nkpoints,nbands,nbands],dtype=np.complex64)
+        for nk,k in enumerate(kpoints):
+            h[nk] = self.get_ham_kpoint(kpoint=k)
+        return h
 
     def get_eigvalsh(self,kpoint=(0,0,0)):
         return np.linalg.eigvalsh(self.get_ham_kpoint(kpoint))
