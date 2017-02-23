@@ -227,6 +227,7 @@ class Wannier_hr():
         """
         Get the hamiltonian in real space using a list of hamiltonians
         on a regular mesh of k-points
+        TODO: This can be done using a FFT library
         """
 
         nkpoints = len(hamk)
@@ -237,7 +238,9 @@ class Wannier_hr():
         return ham/nkpoints
 
     def get_ham_kpoint(self,kpoint=(0,0,0)):
-        """ Get the hamiltonian at a certain k-point
+        """
+        Get the hamiltonian at a certain k-point
+        TODO: This can be done using a FFT library
         """
         hamk = np.zeros([self.nwann,self.nwann],dtype=complex)
         for n in xrange(self.npoints):
