@@ -59,39 +59,70 @@ class Wannier_hr():
         """
         self.kpoints_interpolate_hash = None
         self.kpoints_calc_hash = None
-
-        f = open(seedname+"_hr.dat",'r')
-        f.readline()
+        self.seedname = seedname
         self.supercell = (1,1,1)
 
         #check for the existence of a pickle
         if os.path.isfile(seedname+'.npy') and dopickle:
             print "reading from", seedname+'.npy'
-            f = open(seedname+'.npy','r')
-            self.nwann,self.npoints,self.degeneracy,self.ham,self.points = pickle.load(f) 
-            f.close()
+            self.read_npy()
         else:
             print "reading from", seedname+'_hr.dat'
-            self.nwann = int(f.readline())
-            self.npoints = int(f.readline())
-            self.degeneracy = []
-            for i in xrange(int(ceil(self.npoints/15.0))):
-                self.degeneracy += [int(i) for i in f.readline().strip().split()]
-            self.ham = np.zeros([self.npoints,self.nwann,self.nwann],dtype=complex)
-            self.points = np.zeros([self.npoints,3],dtype=int)
-            for n in xrange(self.npoints):
-                for i,j in product(xrange(self.nwann),repeat=2):
-                    line = f.readline().strip().split()
-                    self.points[n] = np.array([int(k) for k in line[:3]])
-                    self.ham[n,i,j] = complex(float(line[-2]),float(line[-1]))
-            #make a pickle
-            if dopickle:
-                f = open(seedname+'.npy','w')
-                pickle.dump([self.nwann,self.npoints,self.degeneracy,self.ham,self.points],f)
-                f.close()
+            self.read_hr(seedname)
 
+            #make a pickle
+            if dopickle: self.write_npy()
+                
+    def read_npy(self,filename=None):
+        """
+        read npy from the 
+        """
+        if filename is None: filename = self.seedname+".npy"
+        f = open(filename,'r')
+        self.nwann,self.npoints,self.degeneracy,self.ham,self.points = pickle.load(f) 
+        f.close()
+        
+    def write_npy(self,filename=None):
+        """
+        write npy to the hard drive
+        """
+        if filename is None: filename = self.seedname+".npy"
+        f = open(filename,'w')
+        pickle.dump([self.nwann,self.npoints,self.degeneracy,self.ham,self.points],f)
+        f.close()
+
+    def read_hr(self,seedname):
+        """
+        Read the hamiltonian in real space
+        """
+        f = open(seedname+"_hr.dat",'r')
+        f.readline()
+        self.nwann = int(f.readline())
+        self.npoints = int(f.readline())
+        self.degeneracy = []
+        for i in xrange(int(ceil(self.npoints/15.0))):
+            self.degeneracy += [int(i) for i in f.readline().strip().split()]
+        self.ham = np.zeros([self.npoints,self.nwann,self.nwann],dtype=complex)
+        self.points = np.zeros([self.npoints,3],dtype=int)
+        for n in xrange(self.npoints):
+            for i,j in product(xrange(self.nwann),repeat=2):
+                line = f.readline().strip().split()
+                self.points[n] = np.array([int(k) for k in line[:3]])
+                self.ham[n,i,j] = complex(float(line[-2]),float(line[-1]))
+        f.close()
+
+    def write_hr(self):
+        """
+        write the hamiltonian in real space
+        """
+        print('Writting _hr.dat file not implemented yet')
+        raise NotImplementedError
+        f = open("%s_hr.dat"%seedname,'w')
+        f.close()
+ 
     def get_ham(self):
-        """ get the hamiltonian as a big matrix
+        """
+        Get the hamiltonian as a big matrix
         """
         xmin = abs(min(self.points[:,0]))
         ymin = abs(min(self.points[:,1]))
@@ -153,7 +184,7 @@ class Wannier_hr():
 
         return ham
 
-    def interpolate_bands(self,kmesh_calc,wigner_mesh,kpoints_interpolate):
+    def interpolate_bands(self,kmesh_calc,wigner_mesh,kpoints_interpolate,backup=True,filename=False):
         """
         Function to interpolate a quantity in the bandstructure
 
@@ -168,6 +199,8 @@ class Wannier_hr():
         wigner_mesh   -> (points,degeneracy)
         bands_calc    -> (kpoints,eig)
         kpoints_interpolate -> kpoints
+        backup        -> Do not change the hamiltonian of this instance
+        filename      -> Save the new hamiltonian in a file
         """
         # 1. calculate the eigenvectors at the kpoints
         # Hr -> Hk
@@ -193,9 +226,10 @@ class Wannier_hr():
         # Hk -> Hr 
 
         #backup
-        bk_points = copy(self.points)
-        bk_degeneracy = copy(self.degeneracy)
-        bk_ham = copy(self.ham)
+        if backup:
+            bk_points = copy(self.points)
+            bk_degeneracy = copy(self.degeneracy)
+            bk_ham = copy(self.ham)
     
         #increase the number of real space components for the interpolation
         points, degeneracy = wigner_mesh
@@ -210,16 +244,21 @@ class Wannier_hr():
         #calculate Hr
         self.ham = self.get_ham_real(h,kpoints_calc)
 
+        #save this hamiltonian in a file?
+        if filename:
+            self.write_npy(filename=filename)
+
         # 3. interpolate the hamiltonian at the different kpoints
         # Hr -> Hk
         h          = np.array([ self.get_ham_kpoint(kpt) for kpt in kpoints_interpolate ])
         eig_interp = np.array([ np.dot(np.dot(np.conjugate(u.T),hk),u).diagonal().real for hk,u in zip(h,self.eiv_interpolate) ])
 
         #restore
-        self.points = bk_points
-        self.degeneracy = bk_degeneracy
-        self.ham = bk_ham
-        self.npoints = len(bk_points)
+        if backup:
+            self.points = bk_points
+            self.degeneracy = bk_degeneracy
+            self.ham = bk_ham
+            self.npoints = len(bk_points)
 
         return eig_interp
 
