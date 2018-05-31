@@ -24,7 +24,6 @@
 #SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from itertools import product, repeat
-from pygnuplot import *
 import numpy as np
 from cmath import exp,pi
 import pickle
@@ -37,15 +36,16 @@ def red_car(red,lat):
     """
     Convert reduced coordinates to cartesian
     """
-    return np.array(map( lambda coord: coord[0]*lat[0]+coord[1]*lat[1]+coord[2]*lat[2], red))
+    return np.array([coord[0]*lat[0]+coord[1]*lat[1]+coord[2]*lat[2] for coord in red])
 
 def car_red(car,lat):
     """
     Convert cartesian coordinates to reduced
     """
-    return np.array(map( lambda coord: np.linalg.solve(np.array(lat).T,coord), car))
+    return np.array([np.linalg.solve(np.array(lat).T,coord) for coord in car])
 
 def plot_matrix(mat):
+    from pygnuplot import Pygnuplot
     nx,ny = np.array(mat).shape
     p = Pygnuplot(xrange="[-.5:%lf]"%(nx-0.5),yrange='[-.5:%lf]'%(ny-0.5))
     p.writeline('unset key')
@@ -54,7 +54,7 @@ def plot_matrix(mat):
 
 class Bandstructure():
     def __init__(self,kpath,divisions):
-        self.points,self.kpath = zip(*kpath)
+        self.points,self.kpath = list(zip(*kpath))
         self.kpath = np.array(self.kpath)
         self.divisions = np.array(divisions)
         self.fermi = 0
@@ -64,8 +64,8 @@ class Bandstructure():
         """ Generate the path in reduced coordinates
         """
         kpoints = []
-        for i in xrange(len(self.divisions)):
-            for j in xrange(self.divisions[i]):
+        for i in range(len(self.divisions)):
+            for j in range(self.divisions[i]):
                 kpoints.append(self.kpath[i] + float(j)/self.divisions[i]*(self.kpath[i+1]-self.kpath[i]))
         kpoints.append(self.kpath[-1])
         self.kpoints = kpoints
@@ -80,7 +80,7 @@ class Bandstructure():
         """
         metric = np.abs(np.dot(prev_eigvecs.conjugate().T, eigvecs))
         connection_order = []
-        indices = range(len(metric))
+        indices = list(range(len(metric)))
         indices.reverse()
         for overlaps in metric:
             maxval = 0
@@ -109,8 +109,8 @@ class Bandstructure():
     def order_bands(self):
         """ with this routine we order the bands according to their caracter
         """
-        order = range(self.nbands)
-        for k in xrange(1,self.nkpoints):
+        order = list(range(self.nbands))
+        for k in range(1,self.nkpoints):
             order = self.estimate_band_connection(self.eigenvectors[k-1],self.eigenvectors[k],order)
             eig = [self.eigenvalues[k,i] for i in order]
             self.eigenvalues[k,:] = eig
@@ -125,7 +125,7 @@ class Bandstructure():
         try:
             from netCDF4 import Dataset
         except:
-            print "Error importing netcdf"
+            print("Error importing netcdf")
             exit()
 
         natoms = len(atoms)
@@ -161,7 +161,7 @@ class Bandstructure():
         """
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif',serif="Computer Modern Roman",size=20)
-        x = range(self.nkpoints)
+        x = list(range(self.nkpoints))
         for n in range(self.nbands): 
             plt.plot(x,self.eigenvalues[:,n]-self.fermi)
         plt.ylabel("Energy [eV]")
@@ -194,7 +194,7 @@ class Bandstructure():
         weigths = np.zeros([norbitals],dtype=complex)
         for nk,k in enumerate(self.kpoints):
             eiv = self.eigenvectors[nk]
-            for n in xrange(self.nbands):
+            for n in range(self.nbands):
                 weigths[:] = 0
                 for o,v in enumerate(vectors):
                     weigths[indexes[o]] += eiv[n,o]*exp(I*2*pi*np.dot(k,v))
@@ -233,8 +233,8 @@ class Bandstructure():
         """ write the bandstructure in a data file to be used by gnuplot
         """
         f = open(filename,'w')
-        for n in xrange(self.nbands):
-            for k in xrange(self.nkpoints):
+        for n in range(self.nbands):
+            for k in range(self.nkpoints):
                 f.write("%3d %12.8lf\n"%(k,self.eigenvalues[k,n]))
             f.write("\n\n")
         f.close()

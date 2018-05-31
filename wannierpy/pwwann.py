@@ -23,7 +23,7 @@
 #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from qefile import *
+from qepy import *
 from itertools import product
 import argparse
 
@@ -64,7 +64,7 @@ class Pw2wann():
     def run(self):
         self.write()
         command = '%s < %s > %s.log'%(self._pw2wann,self.filename,self.prefix)
-        print command
+        print(command)
         os.system(command)
  
 class Wannier():
@@ -106,7 +106,7 @@ class Wannier():
         kpts = self.nscf_kpoints
         nkpts = kpts[0]*kpts[1]*kpts[2]
         self.klist = []
-        for i,j,k in product(range(kpts[0]),range(kpts[1]),range(kpts[2])):
+        for i,j,k in product(list(range(kpts[0])),list(range(kpts[1])),list(range(kpts[2]))):
             self.klist.append([float(i)/kpts[0],float(j)/kpts[1],float(k)/kpts[2],1.0/nkpts])
     
     def run_nscf(self):
@@ -117,7 +117,7 @@ class Wannier():
             os.system('mkdir -p %s'%self._nscf)
             os.system('cp -r %s %s'%(scf_save,nscf_save))
         else:
-            print "scf calculation not found!"
+            print("scf calculation not found!")
             exit()
     
         self.qe_input.control['calculation'] = "'nscf'"
@@ -154,7 +154,7 @@ class Wannier():
         s += "end unit_cell_cart\n"
         #write the projections
         s += "begin projections\n"
-        for atom,proj in self.projections.items():
+        for atom,proj in list(self.projections.items()):
             s+= "%s: %s\n"%(atom,proj)
         s += "end projections\n"
         #write the postiions of the atoms
@@ -172,8 +172,8 @@ class Wannier():
     def run_wannierpp(self):
         self.write()
         command = "%s -pp %s"%(self._wannier90,self.filename)
-        print command
-        if self.dry: print command
+        print(command)
+        if self.dry: print(command)
         else:   os.system(command)
 
     def run_pw2wann(self):
@@ -185,5 +185,5 @@ class Wannier():
     def run_wannier(self):
         self.write()
         command = "%s %s"%(self._wannier90,self.prefix)
-        print command
+        print(command)
         os.system(command)

@@ -24,7 +24,6 @@
 #SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from itertools import product, repeat
-from pygnuplot import *
 import numpy as np
 from cmath import exp,pi
 import pickle
@@ -38,15 +37,16 @@ def red_car(red,lat):
     """
     Convert reduced coordinates to cartesian
     """
-    return np.array(map( lambda coord: coord[0]*lat[0]+coord[1]*lat[1]+coord[2]*lat[2], red))
+    return np.array([coord[0]*lat[0]+coord[1]*lat[1]+coord[2]*lat[2] for coord in red])
 
 def car_red(car,lat):
     """
     Convert cartesian coordinates to reduced
     """
-    return np.array(map( lambda coord: np.linalg.solve(np.array(lat).T,coord), car))
+    return np.array([np.linalg.solve(np.array(lat).T,coord) for coord in car])
 
 def plot_matrix(mat):
+    from pygnuplot import Pygnuplot
     nx,ny = np.array(mat).shape
     p = Pygnuplot(xrange="[-.5:%lf]"%(nx-0.5),yrange='[-.5:%lf]'%(ny-0.5))
     p.writeline('unset key')
@@ -64,10 +64,10 @@ class Wannier_hr():
 
         #check for the existence of a pickle
         if os.path.isfile(seedname+'.npy') and dopickle:
-            print "reading from", seedname+'.npy'
+            print("reading from", seedname+'.npy')
             self.read_npy()
         else:
-            print "reading from", seedname+'_hr.dat'
+            print("reading from", seedname+'_hr.dat')
             self.read_hr(seedname)
 
             #make a pickle
@@ -78,7 +78,7 @@ class Wannier_hr():
         read npy from the 
         """
         if filename is None: filename = self.seedname+".npy"
-        f = open(filename,'r')
+        f = open(filename,'rb')
         self.nwann,self.npoints,self.degeneracy,self.ham,self.points = pickle.load(f) 
         f.close()
         
@@ -87,7 +87,7 @@ class Wannier_hr():
         write npy to the hard drive
         """
         if filename is None: filename = self.seedname+".npy"
-        f = open(filename,'w')
+        f = open(filename,'wb')
         pickle.dump([self.nwann,self.npoints,self.degeneracy,self.ham,self.points],f)
         f.close()
 
@@ -100,12 +100,12 @@ class Wannier_hr():
         self.nwann = int(f.readline())
         self.npoints = int(f.readline())
         self.degeneracy = []
-        for i in xrange(int(ceil(self.npoints/15.0))):
+        for i in range(int(ceil(self.npoints/15.0))):
             self.degeneracy += [int(i) for i in f.readline().strip().split()]
         self.ham = np.zeros([self.npoints,self.nwann,self.nwann],dtype=complex)
         self.points = np.zeros([self.npoints,3],dtype=int)
-        for n in xrange(self.npoints):
-            for i,j in product(xrange(self.nwann),repeat=2):
+        for n in range(self.npoints):
+            for i,j in product(range(self.nwann),repeat=2):
                 line = f.readline().strip().split()
                 self.points[n] = np.array([int(k) for k in line[:3]])
                 self.ham[n,i,j] = complex(float(line[-2]),float(line[-1]))
@@ -132,17 +132,17 @@ class Wannier_hr():
         ymax = abs(max(self.points[:,1]))
         zmax = abs(max(self.points[:,2]))
 
-        xiter = xrange(-xmin,xmax)
-        yiter = xrange(-ymin,ymax)
-        ziter = xrange(-zmin,zmax)
+        xiter = range(-xmin,xmax)
+        yiter = range(-ymin,ymax)
+        ziter = range(-zmin,zmax)
 
         xdim = len(xiter)+1
         ydim = len(yiter)+1
         zdim = len(ziter)+1
         
-        print "xrange: %d %d"%(xmin,xmax)
-        print "yrange: %d %d"%(ymin,ymax)
-        print "zrange: %d %d"%(zmin,zmax)
+        print("xrange: %d %d"%(xmin,xmax))
+        print("yrange: %d %d"%(ymin,ymax))
+        print("zrange: %d %d"%(zmin,zmax))
 
         nw = self.nwann
         ham = np.zeros([xdim,nw,ydim,nw,zdim],dtype=complex)
@@ -169,7 +169,7 @@ class Wannier_hr():
 
         #new ham
         hamk = np.zeros([nx,ny,nz,nw,nx,ny,nz,nw],dtype=complex)
-        for xi,yi,zi in product(xrange(nx),xrange(ny),xrange(nz)):
+        for xi,yi,zi in product(range(nx),range(ny),range(nz)):
             for n,point in enumerate(self.points):
                 i,j,k = point
 
@@ -215,11 +215,11 @@ class Wannier_hr():
         #avoid recalculating things        
         if not self.kpoints_interpolate_hash == kpoints_interpolate_hash:
             h = self.get_ham_kpoints(kpoints_interpolate)
-            _, self.eiv_interpolate = zip(*[ np.linalg.eigh(hk) for hk in h ])
+            _, self.eiv_interpolate = list(zip(*[ np.linalg.eigh(hk) for hk in h ]))
             self.kpoints_interpolate_hash = kpoints_interpolate_hash 
         if not self.kpoints_calc_hash == kpoints_calc_hash:
             h = self.get_ham_kpoints(kpoints_calc)
-            _, self.eiv_calc = zip(*[ np.linalg.eigh(hk) for hk in h ])
+            _, self.eiv_calc = list(zip(*[ np.linalg.eigh(hk) for hk in h ]))
             self.kpoints_calc_hash = kpoints_calc_hash 
 
         # 2. calculate the Hr hamiltonian
@@ -272,7 +272,7 @@ class Wannier_hr():
         nkpoints = len(hamk)
         ham = np.zeros([self.npoints,self.nwann,self.nwann],dtype=complex)
         for nk,kpoint in enumerate(kpoints):
-            for n in xrange(self.npoints):
+            for n in range(self.npoints):
                 ham[n] += hamk[nk]*exp(-I*2*pi*np.dot(kpoint,self.points[n]))*self.degeneracy[n]
         return ham/nkpoints
 
@@ -282,7 +282,7 @@ class Wannier_hr():
         TODO: This can be done using a FFT library
         """
         hamk = np.zeros([self.nwann,self.nwann],dtype=complex)
-        for n in xrange(self.npoints):
+        for n in range(self.npoints):
             hamk += self.ham[n]*exp(I*2*pi*np.dot(kpoint,self.points[n]))/self.degeneracy[n]
         return hamk
 
@@ -293,7 +293,7 @@ class Wannier_hr():
         xij_int = [ tuple(x) for x in self.points ]
 
         #create a dicitonary with the different positions and empty matrices
-        return dict(zip(xij_int,[self.ham[i] for i in xrange(self.npoints)]))
+        return dict(list(zip(xij_int,[self.ham[i] for i in range(self.npoints)])))
 
     def get_ham_kpoints(self,kpoints):
         """

@@ -24,7 +24,6 @@
 #SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from itertools import product, repeat
-from pygnuplot import *
 import numpy as np
 from cmath import exp,pi
 import pickle
@@ -46,6 +45,7 @@ def car_red(car,lat):
     return np.array(map( lambda coord: np.linalg.solve(np.array(lat).T,coord), car))
 
 def plot_matrix(mat):
+    from pygnuplot import Pygnuplot
     nx,ny = np.array(mat).shape
     p = Pygnuplot(xrange="[-.5:%lf]"%(nx-0.5),yrange='[-.5:%lf]'%(ny-0.5))
     p.writeline('unset key')
